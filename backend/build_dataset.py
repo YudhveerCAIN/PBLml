@@ -57,3 +57,6 @@ if rows:
     print("dataset.csv generated successfully")
 else:
     print("No data written to dataset.csv")
+for key in features:
+    if features[key] is None or (isinstance(features[key], float) and (features[key] != features[key])):
+        features[key] = 0

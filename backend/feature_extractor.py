@@ -94,7 +94,7 @@ if __name__ == "__main__":
     latest_doc = collection.find_one(sort=[("_id", -1)])
     session_id = latest_doc["session_id"]
 
-    print(f"\nAnalyzing session: {session_id}")
+    # print(f"\nAnalyzing session: {session_id}")
 
     # Fetch ALL documents for this session
     docs = collection.find({"session_id": session_id})
@@ -109,12 +109,54 @@ if __name__ == "__main__":
 
     session_start = all_events[0]["timestamp"]
 
-    print("\n=== SESSION-LEVEL FEATURES ===")
-    session_features = extract_features(all_events, session_start)
-    print(session_features)
+    # print("\n=== SESSION-LEVEL FEATURES ===")
+    # session_features = extract_features(all_events, session_start)
+    # print(session_features)
 
-    print("\n=== INTERVAL-LEVEL FEATURES (last 10s) ===")
-    interval_features = extract_features(
-        all_events, session_start, window_seconds=10
+    # print("\n=== INTERVAL-LEVEL FEATURES (last 10s) ===")
+    # interval_features = extract_features(
+    #     all_events, session_start, window_seconds=10
+    # )
+    # print(interval_features)
+from pymongo import MongoClient
+
+client = MongoClient("mongodb://localhost:27017/")
+db = client["bot_tracking"]
+collection = db["sessions"]
+
+def extract_session_features(session_id, window_seconds=None):
+    # Fetch all documents for session
+    docs = collection.find({"session_id": session_id})
+
+    all_events = []
+    for doc in docs:
+        all_events.extend(doc["events"])
+
+    if len(all_events) < 2:
+        return None
+
+    # Sort events by timestamp (VERY IMPORTANT)
+    all_events.sort(key=lambda e: e["timestamp"])
+
+    session_start = all_events[0]["timestamp"]
+
+    return extract_features(
+        all_events,
+        session_start,
+        window_seconds=window_seconds
     )
-    print(interval_features)
+
+if __name__ == "__main__":
+    latest_doc = collection.find_one(sort=[("_id", -1)])
+
+    if not latest_doc:
+        print("No sessions found.")
+        exit()
+
+    session_id = latest_doc["session_id"]
+    print(f"\nAnalyzing session: {session_id}")
+
+    features = extract_session_features(session_id)
+
+    print("\nExtracted Features:")
+    print(features)

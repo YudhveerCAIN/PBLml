@@ -1,0 +1,9 @@
+Frontend (tracker.js)
+        ↓
+FastAPI Backend (main.py)
+        ↓
+MongoDB (sessions storage)
+        ↓
+Feature Extraction (feature_extractor.py)
+        ↓
+ML Model (model.pkl)

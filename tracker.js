@@ -1,24 +1,49 @@
-// Generate a simple session ID
-const sessionId = "sess_" + Math.random().toString(36).substring(2, 10);
+// ===============================
+// Persistent Session ID
+// ===============================
+let sessionId = localStorage.getItem("bot_session_id");
 
-// Store all behavior events
-const events = [];
-
-function logEvent(event) {
-  events.push(event);
+if (!sessionId) {
+  sessionId = "sess_" + Math.random().toString(36).substring(2, 10);
+  localStorage.setItem("bot_session_id", sessionId);
 }
 
-// Mouse movement tracking
+// ===============================
+// Event Buffer
+// ===============================
+let events = [];
+let isBlocked = false;
+
+function logEvent(event) {
+  if (!isBlocked) {
+    events.push(event);
+  }
+}
+
+// ===============================
+// Mouse Move (THROTTLED)
+// ===============================
+let lastMouseTime = 0;
+
 document.addEventListener("mousemove", (e) => {
-  logEvent({
-    type: "mousemove",
-    x: e.clientX,
-    y: e.clientY,
-    timestamp: Date.now()
-  });
+  const now = Date.now();
+
+  // Only log every 50ms (prevents 1000+ events/sec)
+  if (now - lastMouseTime > 50) {
+    lastMouseTime = now;
+
+    logEvent({
+      type: "mousemove",
+      x: e.clientX,
+      y: e.clientY,
+      timestamp: now
+    });
+  }
 });
 
-// Click tracking
+// ===============================
+// Click Tracking
+// ===============================
 document.addEventListener("click", (e) => {
   logEvent({
     type: "click",
@@ -28,17 +53,30 @@ document.addEventListener("click", (e) => {
   });
 });
 
-// Scroll tracking
+// ===============================
+// Scroll Tracking (THROTTLED)
+// ===============================
+let lastScrollTime = 0;
+
 window.addEventListener("scroll", () => {
-  logEvent({
-    type: "scroll",
-    scrollY: window.scrollY,
-    timestamp: Date.now()
-  });
+  const now = Date.now();
+
+  if (now - lastScrollTime > 100) {
+    lastScrollTime = now;
+
+    logEvent({
+      type: "scroll",
+      scrollY: window.scrollY,
+      timestamp: now
+    });
+  }
 });
 
-// Keyboard timing tracking
+// ===============================
+// Keyboard Timing
+// ===============================
 let lastKeyTime = null;
+
 document.addEventListener("keydown", () => {
   const now = Date.now();
   let delay = null;
@@ -56,9 +94,11 @@ document.addEventListener("keydown", () => {
   });
 });
 
-// Periodically log summary (for testing only)
+// ===============================
+// Send Data Every 3 Seconds
+// ===============================
 setInterval(() => {
-  if (events.length === 0) return;
+  if (events.length === 0 || isBlocked) return;
 
   fetch("http://127.0.0.1:8000/collect", {
     method: "POST",
@@ -70,10 +110,21 @@ setInterval(() => {
       events: events
     })
   })
-  .then(res => res.json())
-  .then(data => {
-    console.log("Sent to server:", data);
-    events.length = 0; // clear after sending
-  })
-  .catch(err => console.error("Error sending data", err));
-}, 5000);
+    .then(res => res.json())
+    .then(data => {
+      console.log("Server response:", data);
+
+      // If backend says BOT → stop tracking
+      if (data.prediction === "BOT") {
+        console.warn("Bot detected. Blocking session.");
+        isBlocked = true;
+
+        // Optional: disable page interaction
+        document.body.innerHTML = "<h1>Access Denied</h1>";
+      }
+
+      events = []; // Clear buffer
+    })
+    .catch(err => console.error("Error sending data", err));
+
+}, 3000);
