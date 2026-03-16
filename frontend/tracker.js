@@ -1,8 +1,7 @@
 // ===============================
 // Backend API URL
 // ===============================
-const API_URL = "https://botdetection.netlify.app/";
-
+const API_URL = "https://botdetection-wdcv.onrender.com/collect";
 // ===============================
 // Persistent Session ID
 // ===============================
@@ -141,3 +140,4 @@ setInterval(() => {
   .catch(err => console.error("Error sending data:", err));
 
 }, 3000);
+window.botDetectionResult = data;
