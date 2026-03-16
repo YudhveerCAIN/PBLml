@@ -2,6 +2,12 @@
 // Backend API URL
 // ===============================
 const API_URL = "https://botdetection-wdcv.onrender.com/collect";
+
+// ===============================
+// Detect Site ID (Multi-Site Support)
+// ===============================
+const SITE_ID = window.location.hostname;
+
 // ===============================
 // Persistent Session ID
 // ===============================
@@ -13,6 +19,7 @@ if (!sessionId) {
 }
 
 console.log("Session:", sessionId);
+console.log("Site:", SITE_ID);
 
 // ===============================
 // Event Buffer
@@ -114,6 +121,7 @@ setInterval(() => {
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
+      site_id: SITE_ID,
       session_id: sessionId,
       events: events
     })
@@ -122,8 +130,9 @@ setInterval(() => {
   .then(data => {
 
     console.log("Server response:", data);
+
     window.botDetectionResult = data;
-    // BOT detected
+
     if (data.prediction === "BOT") {
 
       console.warn("Bot detected. Blocking session.");

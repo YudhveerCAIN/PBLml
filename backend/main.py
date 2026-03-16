@@ -7,6 +7,7 @@ import datetime
 import joblib
 import pandas as pd
 import os
+import time
 
 from feature_extractor import extract_session_features
 
@@ -18,9 +19,9 @@ app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://127.0.0.1:5500",  # local testing
+        "http://127.0.0.1:5500",
         "http://localhost:5500",
-        "*"  # allow deployed frontend (Netlify/Vercel)
+        "*"
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -30,7 +31,6 @@ app.add_middleware(
 # -------------------------
 # MongoDB Connection
 # -------------------------
-# Uses environment variable for deployment
 MONGO_URL = os.getenv("MONGO_URL", "mongodb://localhost:27017/")
 
 client = MongoClient(MONGO_URL)
@@ -41,11 +41,18 @@ sessions_collection = db["sessions"]
 predictions_collection = db["predictions"]
 
 # -------------------------
-# Load trained model once
+# Load trained model
 # -------------------------
 model = joblib.load("model.pkl")
 
 print("✅ Model loaded successfully")
+
+# -------------------------
+# Session buffers for real-time detection
+# -------------------------
+session_buffers = {}
+
+WINDOW_SIZE = 5  # seconds
 
 # -------------------------
 # Request Models
@@ -60,6 +67,7 @@ class Event(BaseModel):
 
 
 class SessionData(BaseModel):
+    site_id: str
     session_id: str
     events: List[Event]
 
@@ -73,7 +81,7 @@ def home():
 
 
 # -------------------------
-# Collect + Auto Predict
+# Collect + Real-Time Predict
 # -------------------------
 @app.post("/collect")
 def collect_data(data: SessionData):
@@ -81,9 +89,10 @@ def collect_data(data: SessionData):
     try:
 
         # -------------------------
-        # Store events
+        # Store raw events
         # -------------------------
         record = {
+            "site_id": data.site_id,
             "session_id": data.session_id,
             "events": [e.dict() for e in data.events],
             "created_at": datetime.datetime.utcnow()
@@ -92,7 +101,25 @@ def collect_data(data: SessionData):
         sessions_collection.insert_one(record)
 
         # -------------------------
-        # Extract session features
+        # Update real-time buffer
+        # -------------------------
+        if data.session_id not in session_buffers:
+            session_buffers[data.session_id] = []
+
+        session_buffers[data.session_id].extend([e.dict() for e in data.events])
+
+        # -------------------------
+        # Sliding window filter
+        # -------------------------
+        now = int(time.time() * 1000)
+
+        session_buffers[data.session_id] = [
+            e for e in session_buffers[data.session_id]
+            if now - e["timestamp"] < WINDOW_SIZE * 1000
+        ]
+
+        # -------------------------
+        # Extract features
         # -------------------------
         features = extract_session_features(data.session_id)
 
@@ -104,11 +131,10 @@ def collect_data(data: SessionData):
             }
 
         # -------------------------
-        # Convert to DataFrame
+        # Prepare dataframe
         # -------------------------
         df = pd.DataFrame([features])
 
-        # Align with model training order
         df = df[model.feature_names_in_]
 
         # -------------------------
@@ -116,9 +142,10 @@ def collect_data(data: SessionData):
         # -------------------------
         probability = model.predict_proba(df)[0][1]
 
-        threshold = 0.75  # change this value to adjust bot sensitivity
+        threshold = 0.75
 
         prediction = 1 if probability >= threshold else 0
+
         # -------------------------
         # Store prediction
         # -------------------------
@@ -126,6 +153,7 @@ def collect_data(data: SessionData):
             {"session_id": data.session_id},
             {
                 "$set": {
+                    "site_id": data.site_id,
                     "prediction": int(prediction),
                     "bot_probability": float(probability),
                     "updated_at": datetime.datetime.utcnow()
@@ -139,6 +167,7 @@ def collect_data(data: SessionData):
         # -------------------------
         return {
             "status": "analyzed",
+            "site_id": data.site_id,
             "session_id": data.session_id,
             "prediction": "BOT" if prediction == 1 else "HUMAN",
             "bot_probability": float(probability)
