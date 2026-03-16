@@ -6,13 +6,22 @@ from pymongo import MongoClient
 import datetime
 import joblib
 import pandas as pd
+import os
+
 from feature_extractor import extract_session_features
 
 app = FastAPI()
 
+# -------------------------
+# CORS Configuration
+# -------------------------
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://127.0.0.1:5500"],
+    allow_origins=[
+        "http://127.0.0.1:5500",  # local testing
+        "http://localhost:5500",
+        "*"  # allow deployed frontend (Netlify/Vercel)
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -21,14 +30,22 @@ app.add_middleware(
 # -------------------------
 # MongoDB Connection
 # -------------------------
-client = MongoClient("mongodb://localhost:27017/")
+# Uses environment variable for deployment
+MONGO_URL = os.getenv("MONGO_URL", "mongodb://localhost:27017/")
+
+client = MongoClient(MONGO_URL)
+
 db = client["bot_tracking"]
-collection = db["sessions"]
+
+sessions_collection = db["sessions"]
+predictions_collection = db["predictions"]
 
 # -------------------------
 # Load trained model once
 # -------------------------
 model = joblib.load("model.pkl")
+
+print("✅ Model loaded successfully")
 
 # -------------------------
 # Request Models
@@ -41,9 +58,19 @@ class Event(BaseModel):
     keyDelay: Optional[int] = None
     timestamp: int
 
+
 class SessionData(BaseModel):
     session_id: str
     events: List[Event]
+
+
+# -------------------------
+# Root endpoint
+# -------------------------
+@app.get("/")
+def home():
+    return {"message": "Bot Detection API Running"}
+
 
 # -------------------------
 # Collect + Auto Predict
@@ -51,50 +78,73 @@ class SessionData(BaseModel):
 @app.post("/collect")
 def collect_data(data: SessionData):
 
-    # Store events
-    record = {
-        "session_id": data.session_id,
-        "events": [e.dict() for e in data.events],
-        "created_at": datetime.datetime.utcnow()
-    }
+    try:
 
-    collection.insert_one(record)
-
-    # Try extracting features
-    features = extract_session_features(data.session_id)
-
-    if not features:
-        return {
-            "status": "collecting",
-            "events_received": len(data.events),
-            "message": "Not enough data yet"
+        # -------------------------
+        # Store events
+        # -------------------------
+        record = {
+            "session_id": data.session_id,
+            "events": [e.dict() for e in data.events],
+            "created_at": datetime.datetime.utcnow()
         }
 
-    # Convert to DataFrame (IMPORTANT)
-    df = pd.DataFrame([features])
+        sessions_collection.insert_one(record)
 
-    # Align feature order with model
-    df = df[model.feature_names_in_]
+        # -------------------------
+        # Extract session features
+        # -------------------------
+        features = extract_session_features(data.session_id)
 
-    prediction = model.predict(df)[0]
-    probability = model.predict_proba(df)[0][1]
-
-    # Save prediction result
-    db["predictions"].update_one(
-        {"session_id": data.session_id},
-        {
-            "$set": {
-                "prediction": int(prediction),
-                "bot_probability": float(probability),
-                "updated_at": datetime.datetime.utcnow()
+        if not features:
+            return {
+                "status": "collecting",
+                "events_received": len(data.events),
+                "message": "Not enough data yet"
             }
-        },
-        upsert=True
-    )
 
-    return {
-        "status": "analyzed",
-        "session_id": data.session_id,
-        "prediction": "BOT" if prediction == 1 else "HUMAN",
-        "bot_probability": float(probability)
-    }
+        # -------------------------
+        # Convert to DataFrame
+        # -------------------------
+        df = pd.DataFrame([features])
+
+        # Align with model training order
+        df = df[model.feature_names_in_]
+
+        # -------------------------
+        # Model prediction
+        # -------------------------
+        prediction = model.predict(df)[0]
+        probability = model.predict_proba(df)[0][1]
+
+        # -------------------------
+        # Store prediction
+        # -------------------------
+        predictions_collection.update_one(
+            {"session_id": data.session_id},
+            {
+                "$set": {
+                    "prediction": int(prediction),
+                    "bot_probability": float(probability),
+                    "updated_at": datetime.datetime.utcnow()
+                }
+            },
+            upsert=True
+        )
+
+        # -------------------------
+        # Return result
+        # -------------------------
+        return {
+            "status": "analyzed",
+            "session_id": data.session_id,
+            "prediction": "BOT" if prediction == 1 else "HUMAN",
+            "bot_probability": float(probability)
+        }
+
+    except Exception as e:
+
+        return {
+            "status": "error",
+            "message": str(e)
+        }
