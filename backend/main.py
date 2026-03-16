@@ -51,9 +51,9 @@ print("✅ Model loaded successfully")
 # Session buffers for real-time detection
 # -------------------------
 session_buffers = {}
-
-WINDOW_SIZE = 5  # seconds
-
+# old window size
+# WINDOW_SIZE = 5  # seconds
+WINDOW_SIZE = 20
 # -------------------------
 # Request Models
 # -------------------------
@@ -109,6 +109,16 @@ def collect_data(data: SessionData):
         session_buffers[data.session_id].extend([e.dict() for e in data.events])
 
         # -------------------------
+        # Sliding window filter old
+        # -------------------------
+        # now = int(time.time() * 1000)
+
+        # session_buffers[data.session_id] = [
+        #     e for e in session_buffers[data.session_id]
+        #     if now - e["timestamp"] < WINDOW_SIZE * 1000
+        # ]
+    
+        # -------------------------
         # Sliding window filter
         # -------------------------
         now = int(time.time() * 1000)
@@ -118,6 +128,17 @@ def collect_data(data: SessionData):
             if now - e["timestamp"] < WINDOW_SIZE * 1000
         ]
 
+        # -------------------------
+        # Minimum events requirement
+        # -------------------------
+        MIN_EVENTS = 50
+
+        if len(session_buffers[data.session_id]) < MIN_EVENTS:
+            return {
+                "status": "collecting",
+                "events_collected": len(session_buffers[data.session_id]),
+                "message": "Waiting for more behavioral data"
+            }
         # -------------------------
         # Extract features
         # -------------------------
