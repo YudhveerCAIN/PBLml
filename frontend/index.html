@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Bot Detection Demo</title>
+
+<style>
+
+body{
+font-family: Arial;
+margin:0;
+background:#f4f6f8;
+}
+
+header{
+background:#222;
+color:white;
+padding:20px;
+text-align:center;
+}
+
+.section{
+padding:60px;
+}
+
+.card-container{
+display:flex;
+gap:20px;
+flex-wrap:wrap;
+}
+
+.card{
+background:white;
+padding:20px;
+border-radius:10px;
+box-shadow:0 4px 10px rgba(0,0,0,0.1);
+width:200px;
+cursor:pointer;
+transition:transform 0.2s;
+}
+
+.card:hover{
+transform:scale(1.05);
+}
+
+button{
+padding:10px 20px;
+margin:10px;
+border:none;
+background:#4CAF50;
+color:white;
+border-radius:5px;
+cursor:pointer;
+}
+
+input{
+padding:10px;
+margin-top:10px;
+width:300px;
+}
+
+#status{
+position:fixed;
+top:10px;
+right:10px;
+background:white;
+padding:15px;
+border-radius:10px;
+box-shadow:0 3px 10px rgba(0,0,0,0.2);
+}
+
+.spacer{
+height:600px;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<header>
+<h1>Behavior Based Bot Detection</h1>
+<p>Interact with the page — the system will analyze your behavior</p>
+</header>
+
+<div id="status">
+<div id="prediction">Prediction: Collecting...</div>
+<div id="prob">Bot Probability: 0</div>
+</div>
+
+<div class="section">
+
+<h2>Typing Activity</h2>
+
+<input placeholder="Type something here..." />
+
+</div>
+
+<div class="section">
+
+<h2>Click Activity</h2>
+
+<button>Click Button 1</button>
+<button>Click Button 2</button>
+<button>Click Button 3</button>
+
+</div>
+
+<div class="section">
+
+<h2>Hover Activity</h2>
+
+<div class="card-container">
+
+<div class="card">Hover Card 1</div>
+<div class="card">Hover Card 2</div>
+<div class="card">Hover Card 3</div>
+<div class="card">Hover Card 4</div>
+
+</div>
+
+</div>
+
+<div class="section">
+
+<h2>Scrolling Activity</h2>
+
+<p>Scroll down to generate scroll behavior data.</p>
+
+</div>
+
+<div class="spacer"></div>
+<div class="spacer"></div>
+<div class="spacer"></div>
+
+<script src="tracker.js"></script>
+
+</body>
+</html>
