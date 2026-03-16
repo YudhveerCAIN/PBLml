@@ -1,4 +1,9 @@
 // ===============================
+// Backend API URL
+// ===============================
+const API_URL = "https://botdetection.netlify.app/";
+
+// ===============================
 // Persistent Session ID
 // ===============================
 let sessionId = localStorage.getItem("bot_session_id");
@@ -7,6 +12,8 @@ if (!sessionId) {
   sessionId = "sess_" + Math.random().toString(36).substring(2, 10);
   localStorage.setItem("bot_session_id", sessionId);
 }
+
+console.log("Session:", sessionId);
 
 // ===============================
 // Event Buffer
@@ -28,7 +35,6 @@ let lastMouseTime = 0;
 document.addEventListener("mousemove", (e) => {
   const now = Date.now();
 
-  // Only log every 50ms (prevents 1000+ events/sec)
   if (now - lastMouseTime > 50) {
     lastMouseTime = now;
 
@@ -54,7 +60,7 @@ document.addEventListener("click", (e) => {
 });
 
 // ===============================
-// Scroll Tracking (THROTTLED)
+// Scroll Tracking
 // ===============================
 let lastScrollTime = 0;
 
@@ -78,6 +84,7 @@ window.addEventListener("scroll", () => {
 let lastKeyTime = null;
 
 document.addEventListener("keydown", () => {
+
   const now = Date.now();
   let delay = null;
 
@@ -92,15 +99,17 @@ document.addEventListener("keydown", () => {
     keyDelay: delay,
     timestamp: now
   });
+
 });
 
 // ===============================
 // Send Data Every 3 Seconds
 // ===============================
 setInterval(() => {
+
   if (events.length === 0 || isBlocked) return;
 
-  fetch("http://127.0.0.1:8000/collect", {
+  fetch(API_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/json"
@@ -110,21 +119,25 @@ setInterval(() => {
       events: events
     })
   })
-    .then(res => res.json())
-    .then(data => {
-      console.log("Server response:", data);
+  .then(res => res.json())
+  .then(data => {
 
-      // If backend says BOT → stop tracking
-      if (data.prediction === "BOT") {
-        console.warn("Bot detected. Blocking session.");
-        isBlocked = true;
+    console.log("Server response:", data);
 
-        // Optional: disable page interaction
-        document.body.innerHTML = "<h1>Access Denied</h1>";
-      }
+    // BOT detected
+    if (data.prediction === "BOT") {
 
-      events = []; // Clear buffer
-    })
-    .catch(err => console.error("Error sending data", err));
+      console.warn("Bot detected. Blocking session.");
+
+      isBlocked = true;
+
+      document.body.innerHTML =
+        "<h1 style='text-align:center;margin-top:200px;color:red'>Access Denied</h1>";
+    }
+
+    events = [];
+
+  })
+  .catch(err => console.error("Error sending data:", err));
 
 }, 3000);
