@@ -122,7 +122,7 @@ setInterval(() => {
   .then(data => {
 
     console.log("Server response:", data);
-
+    window.botDetectionResult = data;
     // BOT detected
     if (data.prediction === "BOT") {
 
@@ -140,4 +140,3 @@ setInterval(() => {
   .catch(err => console.error("Error sending data:", err));
 
 }, 3000);
-window.botDetectionResult = data;

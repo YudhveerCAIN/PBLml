@@ -114,9 +114,11 @@ def collect_data(data: SessionData):
         # -------------------------
         # Model prediction
         # -------------------------
-        prediction = model.predict(df)[0]
         probability = model.predict_proba(df)[0][1]
 
+        threshold = 0.75  # change this value to adjust bot sensitivity
+
+        prediction = 1 if probability >= threshold else 0
         # -------------------------
         # Store prediction
         # -------------------------
