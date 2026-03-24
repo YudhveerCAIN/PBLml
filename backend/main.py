@@ -9,7 +9,7 @@ import pandas as pd
 import os
 import time
 
-from feature_extractor import extract_session_features
+from feature_extractor import extract_features
 
 app = FastAPI()
 
@@ -140,9 +140,13 @@ def collect_data(data: SessionData):
                 "message": "Waiting for more behavioral data"
             }
         # -------------------------
-        # Extract features
+        # Extract features from in-memory buffer
+        # (faster + consistent with sliding window)
         # -------------------------
-        features = extract_session_features(data.session_id)
+        buffer = session_buffers[data.session_id]
+        session_start = buffer[0]["timestamp"]
+
+        features = extract_features(buffer, session_start)
 
         if not features:
             return {
@@ -152,11 +156,16 @@ def collect_data(data: SessionData):
             }
 
         # -------------------------
-        # Prepare dataframe
+        # Prepare dataframe — explicit feature list
         # -------------------------
-        df = pd.DataFrame([features])
+        MODEL_FEATURES = [
+            "key_delay_std", "scroll_count", "avg_key_delay", "total_events",
+            "mouse_event_count", "click_rate", "mouse_speed_std",
+            "avg_mouse_speed", "event_rate", "mouse_direction_entropy"
+        ]
 
-        df = df[model.feature_names_in_]
+        df = pd.DataFrame([features])
+        df = df[MODEL_FEATURES]
 
         # -------------------------
         # Model prediction
